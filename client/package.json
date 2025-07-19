@@ -1,5 +1,16 @@
 {
   "dependencies": {
-    "mongoose": "^8.16.4"
-  }
+    "mongoose": "^8.16.4",
+    "mongoose-aggregate-paginate-v2": "^1.1.4"
+  },
+  "name": "client",
+  "version": "1.0.0",
+  "description": "a project showacase platform for devs",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
+  },
+  "type": "module",
+  "author": "vishwadeep sankpal",
+  "license": "ISC"
 }
