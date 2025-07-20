@@ -1,20 +1,5 @@
 import mongoose,{Schema} from "mongoose";
 
-const ProjectSchema = new Schema({
-     projectId: {
-            type: String,
-            required: true
-        },
-        projectName: {
-            type: String,
-            required: true
-        },
-        description: {
-            type: String
-        }
-}, {timestamps: true})
-
-export const Project = mongoose.model("Project", ProjectSchema);
 
 const UserSchema = new Schema({
     username : {
@@ -45,12 +30,21 @@ const UserSchema = new Schema({
     coverImage : {
         type : String
     },
-    projectList : [
-        {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Project"
+    projectList: [
+    {
+        projectId: {
+            type: String,
+            required: true
+        },
+        projectName: {
+            type: String,
+            required: true
+        },
+        description: {
+            type: String
         }
-    ],
+    }
+   ],
     password  : {
         type : String,
         required : [true, 'password is required']
