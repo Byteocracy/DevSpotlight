@@ -11,12 +11,12 @@ const ProjectSchema = new Schema({
         required: true,
         trim: true
     },
-    liveLink: {
+    projectUrl: {
         type: String,
         required: true,
         trim: true
     },
-    gitHubLink: {
+    gitHubUrl: {
         type: String,
         required: true,
         trim: true

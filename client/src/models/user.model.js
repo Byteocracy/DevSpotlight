@@ -32,17 +32,9 @@ const UserSchema = new Schema({
     },
     projectList: [
     {
-        projectId: {
-            type: String,
-            required: true
-        },
-        projectName: {
-            type: String,
-            required: true
-        },
-        description: {
-            type: String
-        }
+        type: Schema.Types.ObjectId,
+        ref : "Project",
+        
     }
    ],
     password  : {
