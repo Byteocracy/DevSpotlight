@@ -14,7 +14,5 @@ const FollowSchema = new Schema({
     
 }, { timestamps: true });
 
-// Ensure a user cannot follow the same user multiple  
-FollowSchema.index({ follower: 1, following: 1 }, { unique: true });
 
 export const Follow = mongoose.model('Follow', FollowSchema);
