@@ -1,15 +1,15 @@
 import mongoose, { Schema } from "mongoose";
 
-const VoteSchema = new Schema({
+const LikeSchema = new Schema({
     project: {
         type: Schema.Types.ObjectId,
         ref: "Project"
     },
-    voteBy: {
+    likeBy: {
         type: Schema.Types.ObjectId,
         ref: "User"
     }
 }, { timestamps: true });
 
 
-export const Vote =  mongoose.model("Vote", VoteSchema);
+export const Like =  mongoose.model("Like", LikeSchema);
