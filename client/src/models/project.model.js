@@ -13,17 +13,17 @@ const ProjectSchema = new Schema(
       trim: true,
     },
     projectUrl: {
-        type: String,
-        required: true,
-        trim: true
+      type: String,
+      required: true,
+      trim: true,
     },
-    gitHubUrl: {
-        type: String,
-        required: true,
-        trim: true
+    githubUrl: {
+      type: String,
+      required: true,
+      trim: true,
     },
     topic: {
-      type: [String],
+      type: String,
       required: true,
       trim: true,
     },
@@ -32,9 +32,14 @@ const ProjectSchema = new Schema(
       ref: "User",
       required: true,
     },
+    thumbnail: {
+      type: String,
+      required: true,
+    },
+
     isPublished: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     visits: {
       type: Number,
