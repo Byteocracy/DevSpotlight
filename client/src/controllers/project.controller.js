@@ -150,6 +150,7 @@ const getProjectById = asyncHandler(async (req, res) => {
   return res.status(200).json(200, project, "Project fetched successfully");
 });
 
+
 export {
   uploadProject,
   updateProject,
