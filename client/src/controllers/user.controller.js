@@ -187,3 +187,15 @@ const deleteProfile = asyncHandler(async (req, res) => {
       new ApiResponse(200, null, "Your account has been deleted successfully")
     );
 });
+
+export {
+  updateProfile,
+  changeCurrentPassword,
+  removeUserAvatar,
+  removeUserCoverImage,
+  deleteProfile,
+  getMyProfile,
+  getMyProjects,
+  getMyFavoriteProjects,
+  getMyContributedProjects,
+};
