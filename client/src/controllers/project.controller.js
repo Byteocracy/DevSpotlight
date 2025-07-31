@@ -5,6 +5,7 @@ import ApiResponse from "../utils/apiResponse.js";
 import ApiError from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
 import { Project } from "../models/project.model.js";
+import { Favourite } from "../models/favourites.model.js";
 import uploadOnCloudinary from "../utils/cloudinary.js";
 
 //upload project
@@ -129,9 +130,89 @@ const deleteProject = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, {}, "Project deleted Successfully!"));
 });
-
 //get all projects(all, topic, sort, pagination)
-const getAllProjects = asyncHandler(async (req, res) => {});
+const getAllProjects = asyncHandler(async (req, res) => {
+  const {
+    page = 1,
+    limit = 9,
+    query = "",
+    sortBy = "createdAt",
+    sortType = "desc",
+    userId,
+  } = req.query;
+
+  const pageNum = parseInt(page, 10);
+  const limitNum = parseInt(limit, 10);
+  const skip = (pageNum - 1) * limitNum;
+
+  const matchStage = {
+    isPublished: true,
+  };
+
+  if (userId) {
+    matchStage.owner = userId;
+  }
+
+  if (query) {
+    matchStage.$or = [
+      { title: { $regex: query, $options: "i" } },
+      { description: { $regex: query, $options: "i" } },
+    ];
+  }
+
+  const sortOrder = sortType === "asc" ? 1 : -1;
+  const sortStage = {
+    [sortBy]: sortOrder,
+  };
+
+  const projects = await Project.aggregate([
+    { $match: matchStage },
+    { $sort: sortStage },
+    { $skip: skip },
+    { $limit: limitNum },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner",
+      },
+    },
+    {
+      $unwind: "$owner",
+    },
+    {
+      $project: {
+        title: 1,
+        description: 1,
+        thumbnail: 1,
+        views: 1,
+        createdAt: 1,
+        isPublished: 1,
+        owner: {
+          _id: 1,
+          userName: 1,
+          avatar: 1,
+        },
+      },
+    },
+  ]);
+
+  const total = await Project.countDocuments(matchStage);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        results: projects,
+      },
+      "Projects fetched successfully"
+    )
+  );
+});
 //get project by projectId
 const getProjectById = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
@@ -150,6 +231,45 @@ const getProjectById = asyncHandler(async (req, res) => {
   return res.status(200).json(200, project, "Project fetched successfully");
 });
 
+//toggle to favourites
+const toggleFavourite = asyncHandler(async (req, res) => {
+  //project Id
+  const { projectId } = req.params;
+  const userId = req.user._id;
+  if (!projectId) {
+    throw new ApiError(400, "Project ID is missing !");
+  }
+  //check for project
+  const project = await Project.findById(projectId);
+  if (!project) {
+    throw new ApiError(404, "Project not found !");
+  }
+  //check if already in favourites
+  const isFavourite = await Favourite.findById(projectId);
+  if (isFavourite) {
+    //if yes then toggle
+    const result = await isFavourite.deleteOne();
+    return res
+      .status(200)
+      .json(200, {}, "Project Removed from favourites successfully!");
+  } else {
+    //else add to fav
+    const newFavourite = await Favourite.create({
+      project: project,
+      straredBy: userId,
+    });
+
+    if (!newFavourite) {
+      throw new ApiError(
+        400,
+        "Something went wrong ! unable to add to favourite!"
+      );
+    }
+    return res
+      .status(200)
+      .json(200, newFavourite, "Project added to favourites successfully!");
+  }
+});
 
 export {
   uploadProject,
@@ -157,4 +277,5 @@ export {
   deleteProject,
   getProjectById,
   getAllProjects,
+  toggleFavourite,
 };
