@@ -1,0 +1,159 @@
+import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+import asyncHandler from "../utils/asyncHandlers.js";
+import ApiResponse from "../utils/apiResponse.js";
+import ApiError from "../utils/apiError.js";
+import { User } from "../models/user.model.js";
+import { Project } from "../models/project.model.js";
+import uploadOnCloudinary from "../utils/cloudinary.js";
+
+//upload project
+const uploadProject = asyncHandler(async (req, res) => {
+  //get project details
+  const user = req.user;
+  const { title, description, topic, githubUrl, liveUrl } = req.body;
+  if (
+    [title, description, topic, githubUrl, liveUrl].some(
+      (field) => field?.trim() === ""
+    )
+  ) {
+    throw new ApiError(400, "All fields are required !");
+  }
+  //get thumbnail
+  const thumbnailFile = req.files.thumbnail?.[0];
+
+  if (!thumbnailFile) {
+    throw new ApiError(400, "Thumbnail is required!");
+  }
+  //upload thumbnail to cloudinary
+  const thumbnailUpload = await uploadOnCloudinary(thumbnailFile.path);
+
+  //create project
+  const project = await Project.create({
+    title,
+    description,
+    title,
+    githubUrl,
+    projectUrl: liveUrl,
+    thumbnail: thumbnailUpload.url,
+    owner: user,
+  });
+
+  if (!project) {
+    throw new ApiError(400, "Something went wrong while uploading project!");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, Project, "Project uploaded successfully"));
+});
+//update project
+const updateProject = asyncHandler(async (req, res) => {
+  const { projectId } = req.params;
+  if (!projectId) {
+    throw new ApiError(400, "Project id is missing from params");
+  }
+
+  const user = req.user;
+  if (!user) {
+    throw new ApiError(400, "Invalid action");
+  }
+
+  const { title, description, topic, githubUrl, liveUrl } = req.body;
+  const thumbnailFile = req.files.thumbnail?.[0];
+
+  if (thumbnailFile) {
+    const thumbnailUpload = await uploadOnCloudinary(thumbnailFile.path);
+    project.thumbnail = thumbnailUpload.url;
+  }
+
+  //find project
+  const project = await Project.findById(projectId);
+  if (!project) {
+    throw new ApiError(404, "Project not found!!");
+  }
+  //check user authorization
+  if (project.owner.toString() !== user._id.toString()) {
+    throw new ApiError(
+      400,
+      "Unauthorized action !! You are not allowed to update this project!"
+    );
+  }
+
+  //update
+  if (title) {
+    project.title = title;
+  }
+  if (description) {
+    project.description = description;
+  }
+  if (topic) {
+    project.topic = topic;
+  }
+  if (githubUrl) {
+    project.githubUrl = githubUrl;
+  }
+  if (liveUrl) {
+    project.liveUrl = liveUrl;
+  }
+  //save
+  const updatedProject = await project.save();
+  //send response
+  return res
+    .status(200)
+    .json(200, updatedProject, "Project updated successfully!");
+});
+//delete project
+const deleteProject = asyncHandler(async (req, res) => {
+  //projectId
+  const { projectId } = req.params;
+  const user = req.user;
+  const project = await Project.findById(projectId);
+  if (!project) {
+    throw new ApiError(404, "Project Not Found!");
+  }
+
+  //check owner
+  if (user._id.toString() !== project.owner.toString()) {
+    throw new ApiError(
+      403,
+      "Unauthorized action ! Your are not allowed to delete this project"
+    );
+  }
+
+  //delete
+  const result = await project.deleteOne();
+
+  //send response
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Project deleted Successfully!"));
+});
+
+//get all projects(all, topic, sort, pagination)
+const getAllProjects = asyncHandler(async (req, res) => {});
+//get project by projectId
+const getProjectById = asyncHandler(async (req, res) => {
+  const { projectId } = req.params;
+  if (!projectId) {
+    throw new ApiError(400, "Project Id is missing in params");
+  }
+
+  const project = await Project.findById(projectId);
+  project.visits += 1;
+  await project.save();
+
+  if (!project) {
+    throw new ApiError(404, "Project nor Found !");
+  }
+
+  return res.status(200).json(200, project, "Project fetched successfully");
+});
+
+export {
+  uploadProject,
+  updateProject,
+  deleteProject,
+  getProjectById,
+  getAllProjects,
+};
