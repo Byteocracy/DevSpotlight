@@ -14,7 +14,17 @@ const UserSchema = new Schema(
     enum: ['user', 'admin'],
     default: 'user'
      },
-     
+
+     isBanned: { 
+      type: Boolean, 
+      default: false
+     },
+
+     banExpiresAt: { 
+      type: Date,
+       default: null
+       },
+
     bio: {
       type: String,
       required: true,
