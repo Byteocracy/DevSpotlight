@@ -25,7 +25,7 @@ const updateProfile = asyncHandler(async (req, res) => {
 
   const coverImageFile = req.files?.coverImage?.[0];
   if (coverImageFile) {
-    const coverImageUpload = await uploadOnCloudinary(coverImageFile.path);
+    const coverImageUpload = await uploadOnCloudinara2qy(coverImageFile.path);
     coverImageUrl = coverImageUpload?.url;
   }
 
@@ -171,7 +171,7 @@ const deleteProfile = asyncHandler(async (req, res) => {
   if (!user) {
     throw new ApiError(404, "User not found");
   }
-  
+
 
   res
     .status(200)
