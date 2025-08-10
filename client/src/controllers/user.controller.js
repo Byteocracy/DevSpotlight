@@ -5,7 +5,7 @@ import ApiResponse from "../utils/apiResponse.js";
 import ApiError from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
 import { Project } from "../models/project.model.js";
-
+import { Contribution } from "../models/contribution.model.js";
 
 const updateProfile = asyncHandler(async (req, res) => {
   const { userName, bio, email, fullName } = req.body;
@@ -46,7 +46,9 @@ const updateProfile = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, updatedUser, "Account detail updated successfully"));
+    .json(
+      new ApiResponse(200, updatedUser, "Account detail updated successfully")
+    );
 });
 
 const getMyProfile = asyncHandler(async (req, res) => {
@@ -56,29 +58,28 @@ const getMyProfile = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-  res.status(200).json(
-    new ApiResponse(200, user, "Profile fetched successfully")
-  );
+  res
+    .status(200)
+    .json(new ApiResponse(200, user, "Profile fetched successfully"));
 });
 
-const changeCurrentPassword = asyncHandler(async(req,res)=>{
-  const {oldPassword,newPassword} = req.body
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
 
- const user = await User.findById(req.user?._id)
- const isPasswordCorrect= await user.isPasswordCorrect(oldPassword)
-  
- if(!isPasswordCorrect){
-  throw new ApiError(400,"Invalid old password")
- }
+  const user = await User.findById(req.user?._id);
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
- user.password = newPassword
- await user.save({validateBeforeSave : false})
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Invalid old password");
+  }
 
- return res
- .status(200)
- .json(new ApiResponse(200,{},"Password is changed successfully"))
- 
-})
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password is changed successfully"));
+});
 
 const getMyProjects = asyncHandler(async (req, res) => {
   const myProjects = await Project.aggregate([
@@ -111,14 +112,16 @@ const getMyFavoriteProjects = asyncHandler(async (req, res) => {
 
   res
     .status(200)
-    .json(new ApiResponse(200, myProjects, "Favorite projects fetched successfully"));
+    .json(
+      new ApiResponse(200, myProjects, "Favorite projects fetched successfully")
+    );
 });
 
 const getMyContributedProjects = asyncHandler(async (req, res) => {
   const myContributedProjects = await Contribution.aggregate([
     {
       $match: {
-        owner: new mongoose.Types.ObjectId(req.user._id),
+        contributor: new mongoose.Types.ObjectId(req.user._id),
       },
     },
     {
@@ -128,7 +131,13 @@ const getMyContributedProjects = asyncHandler(async (req, res) => {
 
   res
     .status(200)
-    .json(new ApiResponse(200, myProjects, "Contibution projects fetched successfully"));
+    .json(
+      new ApiResponse(
+        200,
+        myProjects,
+        "Contibution projects fetched successfully"
+      )
+    );
 });
 
 const removeUserCoverImage = asyncHandler(async (req, res) => {
@@ -172,10 +181,21 @@ const deleteProfile = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
 
-
   res
     .status(200)
-    .json(new ApiResponse(200, null, "Your account has been deleted successfully"));
+    .json(
+      new ApiResponse(200, null, "Your account has been deleted successfully")
+    );
 });
 
-
+export {
+  updateProfile,
+  changeCurrentPassword,
+  removeUserAvatar,
+  removeUserCoverImage,
+  deleteProfile,
+  getMyProfile,
+  getMyProjects,
+  getMyFavoriteProjects,
+  getMyContributedProjects,
+};
