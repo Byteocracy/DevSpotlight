@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import { Project } from "./project.model";
+import { Project } from "./project.model.js";
 
 const favouriteSchema = new Schema({
   project: {
@@ -12,4 +12,4 @@ const favouriteSchema = new Schema({
   },
 });
 
-export const Favoutite = mongoose.model("Favoutite", favouriteSchema);
+export const Favourite = mongoose.model("Favourite", favouriteSchema);

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import asyncHandler from "../utils/asyncHandlers.js";
-import ApiError from "../utils/apiError.js";
-import ApiResponse from "../utils/apiResponse.js";
+import { asyncHandler } from "../utils/asyncHandlers.js";
+import { ApiError } from "../utils/apiError.js";
+import { ApiResponse } from "../utils/apiResponse.js";
 import { Contribution } from "../models/contribution.model.js";
 import { Project } from "../models/project.model.js";
 import { User } from "../models/user.model.js";
@@ -55,10 +55,10 @@ const approveContributionRequest = asyncHandler(async (req, res) => {
   if (!contributionId) {
     throw new ApiError(400, "Contribution ID is required!");
   }
- 
-   
+
   // why populate - > In Mongoose, .populate() is used to replace a referenced document's ID in a field with the actual document data from another collection
-  const contribution = await Contribution.findById(contributionId).populate("project");
+  const contribution =
+    await Contribution.findById(contributionId).populate("project");
   if (!contribution) {
     throw new ApiError(404, "Contribution request not found!");
   }
@@ -85,7 +85,8 @@ const rejectContributionRequest = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Contribution ID is required!");
   }
 
-  const contribution = await Contribution.findById(contributionId).populate("project");
+  const contribution =
+    await Contribution.findById(contributionId).populate("project");
   if (!contribution) {
     throw new ApiError(404, "Contribution request not found!");
   }
