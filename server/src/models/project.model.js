@@ -12,31 +12,33 @@ const ProjectSchema = new Schema(
       required: true,
       trim: true,
     },
-    projectUrl: {
+    techStack: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    githubLink: {
       type: String,
-      required: true,
       trim: true,
+      default: "",
     },
-    githubUrl: {
+    liveLink: {
       type: String,
-      required: true,
       trim: true,
+      default: "",
     },
-    topic: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    owner: {
+    images: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-    thumbnail: {
-      type: String,
-      required: true,
-    },
-
     isPublished: {
       type: Boolean,
       default: true,
@@ -48,5 +50,8 @@ const ProjectSchema = new Schema(
   },
   { timestamps: true }
 );
+
+ProjectSchema.index({ createdAt: -1 });
+ProjectSchema.index({ userId: 1, createdAt: -1 });
 
 export const Project = mongoose.model("Project", ProjectSchema);

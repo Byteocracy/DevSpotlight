@@ -2,23 +2,25 @@ import mongoose, { Schema } from "mongoose";
 
 const contributionSchema = new Schema(
   {
-    project: {
+    projectId: {
       type: mongoose.Types.ObjectId,
       ref: "Project",
-      required: true
+      required: true,
     },
-    contributor: {
+    userId: {
       type: mongoose.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED"],
-      default: "PENDING"
-    }
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
   },
   { timestamps: true }
 );
+
+contributionSchema.index({ projectId: 1, userId: 1 }, { unique: true });
 
 export const Contribution = mongoose.model("Contribution", contributionSchema);

@@ -1,281 +1,278 @@
-import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { asyncHandler } from "../utils/asyncHandlers.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { ApiError } from "../utils/apiError.js";
-import { User } from "../models/user.model.js";
 import { Project } from "../models/project.model.js";
-import { Favourite } from "../models/favourites.model.js";
-import uploadOnCloudinary from "../utils/cloudinary.js";
+import { Like } from "../models/like.model.js";
+import { Comment } from "../models/comment.model.js";
 
-//upload project
-const uploadProject = asyncHandler(async (req, res) => {
-  //get project details
-  const user = req.user;
-  const { title, description, topic, githubUrl, liveUrl } = req.body;
-  if (
-    [title, description, topic, githubUrl, liveUrl].some(
-      (field) => field?.trim() === ""
-    )
-  ) {
-    throw new ApiError(400, "All fields are required !");
+const parseStringArray = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => `${item}`.trim()).filter(Boolean);
   }
-  //get thumbnail
-  const thumbnailFile = req.files.thumbnail?.[0];
 
-  if (!thumbnailFile) {
-    throw new ApiError(400, "Thumbnail is required!");
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
-  //upload thumbnail to cloudinary
-  const thumbnailUpload = await uploadOnCloudinary(thumbnailFile.path);
 
-  //create project
+  return [];
+};
+
+const validateOptionalUrl = (value, fieldName) => {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return new URL(value).toString();
+  } catch {
+    throw new ApiError(400, `${fieldName} must be a valid URL`);
+  }
+};
+
+const buildProjectPayload = (project, extra = {}) => ({
+  _id: project._id,
+  title: project.title,
+  description: project.description,
+  techStack: project.techStack,
+  githubLink: project.githubLink,
+  liveLink: project.liveLink,
+  images: project.images,
+  userId: project.userId,
+  visits: project.visits,
+  createdAt: project.createdAt,
+  updatedAt: project.updatedAt,
+  ...extra,
+});
+
+const createProject = asyncHandler(async (req, res) => {
+  const { title, description } = req.body;
+
+  if (!title?.trim() || !description?.trim()) {
+    throw new ApiError(400, "Title and description are required");
+  }
+
   const project = await Project.create({
-    title,
-    description,
-    title,
-    githubUrl,
-    projectUrl: liveUrl,
-    thumbnail: thumbnailUpload.url,
-    owner: user,
+    title: title.trim(),
+    description: description.trim(),
+    techStack: parseStringArray(req.body.techStack),
+    githubLink: validateOptionalUrl(req.body.githubLink?.trim(), "githubLink"),
+    liveLink: validateOptionalUrl(req.body.liveLink?.trim(), "liveLink"),
+    images: parseStringArray(req.body.images),
+    userId: req.user._id,
   });
 
-  if (!project) {
-    throw new ApiError(400, "Something went wrong while uploading project!");
-  }
+  const createdProject = await Project.findById(project._id).populate(
+    "userId",
+    "userName fullName avatar"
+  );
 
   return res
-    .status(200)
-    .json(new ApiResponse(200, Project, "Project uploaded successfully"));
-});
-//update project
-const updateProject = asyncHandler(async (req, res) => {
-  const { projectId } = req.params;
-  if (!projectId) {
-    throw new ApiError(400, "Project id is missing from params");
-  }
-
-  const user = req.user;
-  if (!user) {
-    throw new ApiError(400, "Invalid action");
-  }
-
-  const { title, description, topic, githubUrl, liveUrl } = req.body;
-  const thumbnailFile = req.files.thumbnail?.[0];
-
-  if (thumbnailFile) {
-    const thumbnailUpload = await uploadOnCloudinary(thumbnailFile.path);
-    project.thumbnail = thumbnailUpload.url;
-  }
-
-  //find project
-  const project = await Project.findById(projectId);
-  if (!project) {
-    throw new ApiError(404, "Project not found!!");
-  }
-  //check user authorization
-  if (project.owner.toString() !== user._id.toString()) {
-    throw new ApiError(
-      400,
-      "Unauthorized action !! You are not allowed to update this project!"
+    .status(201)
+    .json(
+      new ApiResponse(
+        201,
+        buildProjectPayload(createdProject),
+        "Project created successfully"
+      )
     );
-  }
-
-  //update
-  if (title) {
-    project.title = title;
-  }
-  if (description) {
-    project.description = description;
-  }
-  if (topic) {
-    project.topic = topic;
-  }
-  if (githubUrl) {
-    project.githubUrl = githubUrl;
-  }
-  if (liveUrl) {
-    project.liveUrl = liveUrl;
-  }
-  //save
-  const updatedProject = await project.save();
-  //send response
-  return res
-    .status(200)
-    .json(200, updatedProject, "Project updated successfully!");
 });
-//delete project
-const deleteProject = asyncHandler(async (req, res) => {
-  //projectId
-  const { projectId } = req.params;
-  const user = req.user;
-  const project = await Project.findById(projectId);
-  if (!project) {
-    throw new ApiError(404, "Project Not Found!");
-  }
 
-  //check owner
-  if (user._id.toString() !== project.owner.toString()) {
-    throw new ApiError(
-      403,
-      "Unauthorized action ! Your are not allowed to delete this project"
-    );
-  }
-
-  //delete
-  const result = await project.deleteOne();
-
-  //send response
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, "Project deleted Successfully!"));
-});
-//get all projects(all, topic, sort, pagination)
 const getAllProjects = asyncHandler(async (req, res) => {
-  const {
-    page = 1,
-    limit = 9,
-    query = "",
-    sortBy = "createdAt",
-    sortType = "desc",
-    userId,
-  } = req.query;
-
-  const pageNum = parseInt(page, 10);
-  const limitNum = parseInt(limit, 10);
-  const skip = (pageNum - 1) * limitNum;
-
-  const matchStage = {
-    isPublished: true,
-  };
-
-  if (userId) {
-    matchStage.owner = userId;
-  }
+  const page = Math.max(Number.parseInt(req.query.page ?? "1", 10), 1);
+  const limit = Math.min(
+    Math.max(Number.parseInt(req.query.limit ?? "6", 10), 1),
+    24
+  );
+  const skip = (page - 1) * limit;
+  const query = req.query.query?.trim();
+  const match = {};
 
   if (query) {
-    matchStage.$or = [
+    match.$or = [
       { title: { $regex: query, $options: "i" } },
       { description: { $regex: query, $options: "i" } },
+      { techStack: { $elemMatch: { $regex: query, $options: "i" } } },
     ];
   }
 
-  const sortOrder = sortType === "asc" ? 1 : -1;
-  const sortStage = {
-    [sortBy]: sortOrder,
-  };
-
-  const projects = await Project.aggregate([
-    { $match: matchStage },
-    { $sort: sortStage },
-    { $skip: skip },
-    { $limit: limitNum },
-    {
-      $lookup: {
-        from: "users",
-        localField: "owner",
-        foreignField: "_id",
-        as: "owner",
-      },
-    },
-    {
-      $unwind: "$owner",
-    },
-    {
-      $project: {
-        title: 1,
-        description: 1,
-        thumbnail: 1,
-        views: 1,
-        createdAt: 1,
-        isPublished: 1,
-        owner: {
-          _id: 1,
-          userName: 1,
-          avatar: 1,
-        },
-      },
-    },
+  const [projects, total] = await Promise.all([
+    Project.find(match)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("userId", "userName fullName avatar")
+      .lean(),
+    Project.countDocuments(match),
   ]);
 
-  const total = await Project.countDocuments(matchStage);
+  const projectIds = projects.map((project) => project._id);
+  const [likes, comments] = await Promise.all([
+    Like.aggregate([
+      { $match: { project: { $in: projectIds } } },
+      { $group: { _id: "$project", count: { $sum: 1 } } },
+    ]),
+    Comment.aggregate([
+      { $match: { project: { $in: projectIds } } },
+      { $group: { _id: "$project", count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const likeMap = new Map(likes.map((entry) => [String(entry._id), entry.count]));
+  const commentMap = new Map(
+    comments.map((entry) => [String(entry._id), entry.count])
+  );
 
   return res.status(200).json(
     new ApiResponse(
       200,
       {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        results: projects,
+        projects: projects.map((project) =>
+          buildProjectPayload(project, {
+            likeCount: likeMap.get(String(project._id)) ?? 0,
+            commentCount: commentMap.get(String(project._id)) ?? 0,
+          })
+        ),
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit) || 1,
+          hasNextPage: skip + limit < total,
+          hasPreviousPage: page > 1,
+        },
       },
       "Projects fetched successfully"
     )
   );
 });
-//get project by projectId
+
 const getProjectById = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
-  if (!projectId) {
-    throw new ApiError(400, "Project Id is missing in params");
+
+  if (!mongoose.isValidObjectId(projectId)) {
+    throw new ApiError(400, "Invalid project id");
   }
 
-  const project = await Project.findById(projectId);
+  const project = await Project.findById(projectId).populate(
+    "userId",
+    "userName fullName avatar bio"
+  );
+
+  if (!project) {
+    throw new ApiError(404, "Project not found");
+  }
+
   project.visits += 1;
   await project.save();
 
-  if (!project) {
-    throw new ApiError(404, "Project nor Found !");
-  }
+  const [likeCount, commentCount] = await Promise.all([
+    Like.countDocuments({ project: project._id }),
+    Comment.countDocuments({ project: project._id }),
+  ]);
 
-  return res.status(200).json(200, project, "Project fetched successfully");
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      buildProjectPayload(project, { likeCount, commentCount }),
+      "Project fetched successfully"
+    )
+  );
 });
 
-//toggle to favourites
-const toggleFavourite = asyncHandler(async (req, res) => {
-  //project Id
+const updateProject = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
-  const userId = req.user._id;
-  if (!projectId) {
-    throw new ApiError(400, "Project ID is missing !");
+
+  if (!mongoose.isValidObjectId(projectId)) {
+    throw new ApiError(400, "Invalid project id");
   }
-  //check for project
+
   const project = await Project.findById(projectId);
   if (!project) {
-    throw new ApiError(404, "Project not found !");
+    throw new ApiError(404, "Project not found");
   }
-  //check if already in favourites
-  const isFavourite = await Favourite.findById(projectId);
-  if (isFavourite) {
-    //if yes then toggle
-    const result = await isFavourite.deleteOne();
-    return res
-      .status(200)
-      .json(200, {}, "Project Removed from favourites successfully!");
-  } else {
-    //else add to fav
-    const newFavourite = await Favourite.create({
-      project: project,
-      straredBy: userId,
-    });
 
-    if (!newFavourite) {
-      throw new ApiError(
-        400,
-        "Something went wrong ! unable to add to favourite!"
-      );
-    }
-    return res
-      .status(200)
-      .json(200, newFavourite, "Project added to favourites successfully!");
+  if (String(project.userId) !== String(req.user._id)) {
+    throw new ApiError(403, "You are not allowed to update this project");
   }
+
+  if (req.body.title?.trim()) {
+    project.title = req.body.title.trim();
+  }
+  if (req.body.description?.trim()) {
+    project.description = req.body.description.trim();
+  }
+  if (req.body.techStack !== undefined) {
+    project.techStack = parseStringArray(req.body.techStack);
+  }
+  if (req.body.images !== undefined) {
+    project.images = parseStringArray(req.body.images);
+  }
+  if (req.body.githubLink !== undefined) {
+    project.githubLink = validateOptionalUrl(
+      req.body.githubLink?.trim(),
+      "githubLink"
+    );
+  }
+  if (req.body.liveLink !== undefined) {
+    project.liveLink = validateOptionalUrl(
+      req.body.liveLink?.trim(),
+      "liveLink"
+    );
+  }
+
+  await project.save();
+
+  const updatedProject = await Project.findById(project._id).populate(
+    "userId",
+    "userName fullName avatar"
+  );
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        buildProjectPayload(updatedProject),
+        "Project updated successfully"
+      )
+    );
+});
+
+const deleteProject = asyncHandler(async (req, res) => {
+  const { projectId } = req.params;
+
+  if (!mongoose.isValidObjectId(projectId)) {
+    throw new ApiError(400, "Invalid project id");
+  }
+
+  const project = await Project.findById(projectId);
+  if (!project) {
+    throw new ApiError(404, "Project not found");
+  }
+
+  if (String(project.userId) !== String(req.user._id)) {
+    throw new ApiError(403, "You are not allowed to delete this project");
+  }
+
+  await Promise.all([
+    project.deleteOne(),
+    Comment.deleteMany({ project: project._id }),
+    Like.deleteMany({ project: project._id }),
+  ]);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Project deleted successfully"));
 });
 
 export {
-  uploadProject,
+  createProject,
   updateProject,
   deleteProject,
   getProjectById,
   getAllProjects,
-  toggleFavourite,
 };

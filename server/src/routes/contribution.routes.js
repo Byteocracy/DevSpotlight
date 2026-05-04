@@ -6,15 +6,19 @@ import {
   approveContributionRequest,
   rejectContributionRequest,
   deleteContributionRequest,
+  getProjectContributionRequests,
 } from "../controllers/contribution.controller.js";
 const router = Router();
 
-router.route("/p/:projectId").post(verifyJWT, sendContributionRequest);
 router
-  .route("/requests/approve/:contributionId")
+  .route("/project/:projectId")
+  .post(verifyJWT, sendContributionRequest)
+  .get(verifyJWT, getProjectContributionRequests);
+router
+  .route("/:contributionId/approve")
   .patch(verifyJWT, approveContributionRequest);
 router
-  .route("/requests/reject/:contributionId")
+  .route("/:contributionId/reject")
   .patch(verifyJWT, rejectContributionRequest);
-router.route("/p/:projectId").delete(verifyJWT, deleteContributionRequest);
+router.route("/:contributionId").delete(verifyJWT, deleteContributionRequest);
 export default router;

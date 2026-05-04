@@ -4,17 +4,15 @@ import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { Contribution } from "../models/contribution.model.js";
 import { Project } from "../models/project.model.js";
-import { User } from "../models/user.model.js";
 
-// Send a contribution request
 const sendContributionRequest = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
-  const contributorId = req.user?._id;
+  const userId = req.user?._id;
 
-  if (!projectId) {
-    throw new ApiError(400, "Project ID is required!");
+  if (!mongoose.isValidObjectId(projectId)) {
+    throw new ApiError(400, "Invalid project id");
   }
-  if (!contributorId) {
+  if (!userId) {
     throw new ApiError(400, "Invalid contributor!");
   }
 
@@ -23,52 +21,56 @@ const sendContributionRequest = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Project not found!");
   }
 
-  // Check if already sent
+  if (String(project.userId) === String(userId)) {
+    throw new ApiError(400, "You cannot request contribution on your own project");
+  }
+
   const existingRequest = await Contribution.findOne({
-    project: projectId,
-    contributor: contributorId,
+    projectId,
+    userId,
   });
   if (existingRequest) {
     throw new ApiError(400, "Contribution request already sent!");
   }
 
   const contribution = await Contribution.create({
-    project: projectId,
-    contributor: contributorId,
-    status: "PENDING",
+    projectId,
+    userId,
   });
 
-  if (!contribution) {
-    throw new ApiError(400, "Unable to send contribution request!");
-  }
+  const createdContribution = await Contribution.findById(contribution._id)
+    .populate("projectId", "title")
+    .populate("userId", "userName fullName avatar");
 
   return res
-    .status(200)
-    .json(new ApiResponse(200, contribution, "Contribution request sent!"));
+    .status(201)
+    .json(
+      new ApiResponse(
+        201,
+        createdContribution,
+        "Contribution request sent successfully"
+      )
+    );
 });
 
-// Approve contribution request
 const approveContributionRequest = asyncHandler(async (req, res) => {
   const { contributionId } = req.params;
   const userId = req.user?._id;
 
-  if (!contributionId) {
-    throw new ApiError(400, "Contribution ID is required!");
+  if (!mongoose.isValidObjectId(contributionId)) {
+    throw new ApiError(400, "Invalid contribution id");
   }
 
-  // why populate - > In Mongoose, .populate() is used to replace a referenced document's ID in a field with the actual document data from another collection
-  const contribution =
-    await Contribution.findById(contributionId).populate("project");
+  const contribution = await Contribution.findById(contributionId).populate("projectId");
   if (!contribution) {
     throw new ApiError(404, "Contribution request not found!");
   }
 
-  // Only project owner can approve
-  if (contribution.project.owner.toString() !== userId.toString()) {
+  if (String(contribution.projectId.userId) !== String(userId)) {
     throw new ApiError(403, "You are not authorized to approve this request!");
   }
 
-  contribution.status = "APPROVED";
+  contribution.status = "approved";
   await contribution.save();
 
   return res
@@ -76,26 +78,24 @@ const approveContributionRequest = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, contribution, "Contribution request approved!"));
 });
 
-// Reject contribution request
 const rejectContributionRequest = asyncHandler(async (req, res) => {
   const { contributionId } = req.params;
   const userId = req.user?._id;
 
-  if (!contributionId) {
-    throw new ApiError(400, "Contribution ID is required!");
+  if (!mongoose.isValidObjectId(contributionId)) {
+    throw new ApiError(400, "Invalid contribution id");
   }
 
-  const contribution =
-    await Contribution.findById(contributionId).populate("project");
+  const contribution = await Contribution.findById(contributionId).populate("projectId");
   if (!contribution) {
     throw new ApiError(404, "Contribution request not found!");
   }
 
-  if (contribution.project.owner.toString() !== userId.toString()) {
+  if (String(contribution.projectId.userId) !== String(userId)) {
     throw new ApiError(403, "You are not authorized to reject this request!");
   }
 
-  contribution.status = "REJECTED";
+  contribution.status = "rejected";
   await contribution.save();
 
   return res
@@ -103,13 +103,12 @@ const rejectContributionRequest = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, contribution, "Contribution request rejected!"));
 });
 
-// Delete / Cancel contribution request
 const deleteContributionRequest = asyncHandler(async (req, res) => {
   const { contributionId } = req.params;
   const userId = req.user?._id;
 
-  if (!contributionId) {
-    throw new ApiError(400, "Contribution ID is required!");
+  if (!mongoose.isValidObjectId(contributionId)) {
+    throw new ApiError(400, "Invalid contribution id");
   }
 
   const contribution = await Contribution.findById(contributionId);
@@ -117,11 +116,10 @@ const deleteContributionRequest = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Contribution request not found!");
   }
 
-  // Only contributor or project owner can delete
-  const project = await Project.findById(contribution.project);
+  const project = await Project.findById(contribution.projectId);
   if (
-    contribution.contributor.toString() !== userId.toString() &&
-    project.owner.toString() !== userId.toString()
+    String(contribution.userId) !== String(userId) &&
+    String(project.userId) !== String(userId)
   ) {
     throw new ApiError(403, "You are not authorized to delete this request!");
   }
@@ -133,9 +131,39 @@ const deleteContributionRequest = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Contribution request deleted!"));
 });
 
+const getProjectContributionRequests = asyncHandler(async (req, res) => {
+  const { projectId } = req.params;
+  const userId = req.user?._id;
+
+  if (!mongoose.isValidObjectId(projectId)) {
+    throw new ApiError(400, "Invalid project id");
+  }
+
+  const project = await Project.findById(projectId);
+  if (!project) {
+    throw new ApiError(404, "Project not found");
+  }
+
+  if (String(project.userId) !== String(userId)) {
+    throw new ApiError(403, "You are not allowed to view these requests");
+  }
+
+  const requests = await Contribution.find({ projectId })
+    .sort({ createdAt: -1 })
+    .populate("userId", "userName fullName avatar")
+    .lean();
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, requests, "Contribution requests fetched successfully")
+    );
+});
+
 export {
   sendContributionRequest,
   approveContributionRequest,
   rejectContributionRequest,
   deleteContributionRequest,
+  getProjectContributionRequests,
 };
