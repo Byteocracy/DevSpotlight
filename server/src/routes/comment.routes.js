@@ -1,4 +1,3 @@
-import { upload } from "../middlewares/multure.middleware.js";
 import verifyJWT from "../middlewares/auth.middleware.js";
 import {
   addComment,
@@ -8,13 +7,13 @@ import {
 } from "../controllers/comment.controller.js";
 
 import { Router } from "express";
-import { get } from "mongoose";
 
 const router = Router();
 
-router.route("/c/:commentId").post(verifyJWT, addComment);
-router.route("/c/:commentId").delete(verifyJWT, deleteComment);
-router.route("/c/:commentId").patch(verifyJWT, updateComment);
-router.route("/p/:projectId").get(verifyJWT, getAllComments);
+router.route("/project/:projectId").post(verifyJWT, addComment).get(getAllComments);
+router
+  .route("/:commentId")
+  .patch(verifyJWT, updateComment)
+  .delete(verifyJWT, deleteComment);
 
 export default router;

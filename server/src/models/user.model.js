@@ -1,4 +1,7 @@
 import mongoose, { Schema } from "mongoose";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+
 const UserSchema = new Schema(
   {
     userName: {
@@ -27,7 +30,8 @@ const UserSchema = new Schema(
 
     bio: {
       type: String,
-      required: true,
+      trim: true,
+      default: "Building projects on DevSpotlight.",
     },
 
     email: {
@@ -47,7 +51,8 @@ const UserSchema = new Schema(
 
     avatar: {
       type: String,
-      required: true,
+      default:
+        "https://ui-avatars.com/api/?name=Dev+Spotlight&background=111827&color=f8fafc",
     },
 
     coverImage: {

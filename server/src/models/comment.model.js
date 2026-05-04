@@ -26,4 +26,6 @@ const CommentSchema = new Schema(
   { timestamps: true }
 );
 
+CommentSchema.index({ project: 1, createdAt: -1 });
+
 export const Comment = mongoose.model("Comment", CommentSchema);
