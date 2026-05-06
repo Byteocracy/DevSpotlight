@@ -6,7 +6,7 @@ import { Input } from "../../components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../../components/ui/card";
 
 export function Login() {
-  const [userName, setUserName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const { login, loading } = useAuth();
@@ -16,7 +16,7 @@ export function Login() {
     e.preventDefault();
     setError("");
     try {
-      await login({ userName, password });
+      await login({ email, password });
       navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to login");
@@ -33,14 +33,15 @@ export function Login() {
         <CardContent className="space-y-4">
           {error && <div className="text-sm text-destructive">{error}</div>}
           <div className="space-y-2">
-            <label className="text-sm font-medium leading-none" htmlFor="username">
-              Username
+            <label className="text-sm font-medium leading-none" htmlFor="email">
+              Email
             </label>
             <Input
-              id="username"
-              placeholder="johndoe"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
+              id="email"
+              type="email"
+              placeholder="name@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>

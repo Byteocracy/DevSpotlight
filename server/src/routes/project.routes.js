@@ -10,15 +10,15 @@ import {
 } from "../controllers/project.controller.js";
 const router = Router();
 
-router.route("/").post(verifyJWT, upload.array("images", 6), createProject).get(getAllProjects);
+router
+  .route("/")
+  .post(verifyJWT, upload.array("images", 6), createProject)
+  .get(getAllProjects);
+
 router
   .route("/:projectId")
   .get(getProjectById)
   .patch(verifyJWT, upload.array("images", 6), updateProject)
-router.route("/").post(verifyJWT, createProject).get(getAllProjects);
-router
-  .route("/:projectId")
-  .get(getProjectById)
-  .patch(verifyJWT, updateProject)
   .delete(verifyJWT, deleteProject);
+
 export default router;

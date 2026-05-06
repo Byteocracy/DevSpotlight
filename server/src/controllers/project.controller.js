@@ -5,6 +5,7 @@ import { ApiError } from "../utils/apiError.js";
 import { Project } from "../models/project.model.js";
 import { Like } from "../models/like.model.js";
 import { Comment } from "../models/comment.model.js";
+import uploadOnCloudinary from "../utils/cloudinary.js";
 
 const parseStringArray = (value) => {
   if (Array.isArray(value)) {
@@ -19,6 +20,7 @@ const parseStringArray = (value) => {
       .map((item) => item.trim())
       .filter(Boolean);
   }
+  return [];
 };
 
 const buildProjectPayload = (project, extra = {}) => ({
@@ -59,14 +61,20 @@ const createProject = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Title and description are required");
   }
 
+  let imageUrls = [];
+  if (req.files && req.files.length > 0) {
+    imageUrls = await uploadProjectImages(req.files);
+  }
+
+  const allImages = [...parseStringArray(req.body.images), ...imageUrls];
+
   const project = await Project.create({
     title: title.trim(),
     description: description.trim(),
     techStack: parseStringArray(req.body.techStack),
-    githubLink: validateOptionalUrl(req.body.githubLink?.trim(), "githubLink"),
-    liveLink: validateOptionalUrl(req.body.liveLink?.trim(), "liveLink"),
-    images: imageUrls,
-    images: parseStringArray(req.body.images),
+    githubLink: req.body.githubLink?.trim() || "",
+    liveLink: req.body.liveLink?.trim() || "",
+    images: allImages,
     userId: req.user._id,
   });
 
@@ -112,20 +120,6 @@ const getAllProjects = asyncHandler(async (req, res) => {
       .populate("userId", "userName fullName avatar")
       .lean(),
     Project.countDocuments(match),
-  ]);
-
-  const projectIds = projects.map((project) => project._id);
-  const [likes, comments] = await Promise.all([
-    Like.aggregate([
-      { $match: { project: { $in: projectIds } } },
-      { $group: { _id: "$project", count: { $sum: 1 } } },
-    ]),
-    Comment.aggregate([
-      { $match: { project: { $in: projectIds } } },
-      { $group: { _id: "$project", count: { $sum: 1 } } },
-    ]),
-  ]);
-
   ]);
 
   const projectIds = projects.map((project) => project._id);
@@ -197,10 +191,6 @@ const getProjectById = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       buildProjectPayload(project, { likeCount, commentCount }),
-      buildProjectPayload(project, {
-        likeCount,
-        commentCount,
-      }),
       "Project fetched successfully"
     )
   );
@@ -227,30 +217,12 @@ const updateProject = asyncHandler(async (req, res) => {
   }
   if (req.body.description?.trim()) {
     project.description = req.body.description.trim();
-  const updates = {
-    title: req.body.title?.trim(),
-    description: req.body.description?.trim(),
-    githubLink:
-      req.body.githubLink !== undefined
-        ? validateOptionalUrl(req.body.githubLink?.trim(), "githubLink")
-        : undefined,
-    liveLink:
-      req.body.liveLink !== undefined
-        ? validateOptionalUrl(req.body.liveLink?.trim(), "liveLink")
-        : undefined,
-  };
-
-  if (updates.title) {
-    project.title = updates.title;
   }
-  if (updates.description) {
-    project.description = updates.description;
+  if (req.body.githubLink !== undefined) {
+    project.githubLink = req.body.githubLink?.trim() || "";
   }
-  if (updates.githubLink !== undefined) {
-    project.githubLink = updates.githubLink;
-  }
-  if (updates.liveLink !== undefined) {
-    project.liveLink = updates.liveLink;
+  if (req.body.liveLink !== undefined) {
+    project.liveLink = req.body.liveLink?.trim() || "";
   }
   if (req.body.techStack !== undefined) {
     project.techStack = parseStringArray(req.body.techStack);
@@ -258,21 +230,10 @@ const updateProject = asyncHandler(async (req, res) => {
   if (req.body.images !== undefined) {
     project.images = parseStringArray(req.body.images);
   }
-  if (req.files?.length) {
+
+  if (req.files && req.files.length > 0) {
     const uploadedImages = await uploadProjectImages(req.files);
     project.images = [...project.images, ...uploadedImages];
-  }
-  if (req.body.githubLink !== undefined) {
-    project.githubLink = validateOptionalUrl(
-      req.body.githubLink?.trim(),
-      "githubLink"
-    );
-  }
-  if (req.body.liveLink !== undefined) {
-    project.liveLink = validateOptionalUrl(
-      req.body.liveLink?.trim(),
-      "liveLink"
-    );
   }
 
   await project.save();
@@ -326,8 +287,4 @@ export {
   deleteProject,
   getProjectById,
   getAllProjects,
-  getAllProjects,
-  getProjectById,
-  updateProject,
-  deleteProject,
 };

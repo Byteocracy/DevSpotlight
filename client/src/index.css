@@ -41,39 +41,4 @@
   .shadow-soft {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
   }
-:root {
-  color-scheme: dark;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color: #e2e8f0;
-  background:
-    radial-gradient(circle at top, rgba(20, 184, 166, 0.12), transparent 26%),
-    linear-gradient(180deg, #060816 0%, #0b1120 55%, #07111f 100%);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  margin: 0;
-  min-height: 100vh;
-}
-
-body {
-  min-width: 320px;
-}
-
-button,
-input,
-textarea,
-a {
-  font: inherit;
 }

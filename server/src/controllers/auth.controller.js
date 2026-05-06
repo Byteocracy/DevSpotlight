@@ -31,17 +31,6 @@ const generateAccessAndRefreshToken = async (userId) => {
   return { accessToken, refreshToken };
 };
 
-const sanitizeUser = (user) => ({
-  _id: user._id,
-  userName: user.userName,
-  fullName: user.fullName,
-  email: user.email,
-  bio: user.bio,
-  avatar: user.avatar,
-  coverImage: user.coverImage,
-  role: user.role,
-});
-
 //register
 const registerUser = asyncHandler(async (req, res) => {
   const { userName, fullName, email, password, bio, avatar, coverImage } =
@@ -61,14 +50,6 @@ const registerUser = asyncHandler(async (req, res) => {
 
   if (existingUser) {
     throw new ApiError(400, "User already registered");
-  }
-
-  const registeredUser = await User.create({
-    userName: userName.toLowerCase(),
-    fullName: fullName.trim(),
-    email: email.toLowerCase(),
-  if (user) {
-    throw new ApiError(400, "User already registered!");
   }
 
   //create user
@@ -105,30 +86,16 @@ const registerUser = asyncHandler(async (req, res) => {
       "User registered successfully"
     )
   );
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        { user: sanitizeUser(createdUser), accessToken, refreshToken },
-        "User registered successfully"
-      )
-    );
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-  const { userName, email, password } = req.body;
+  const { email, password } = req.body;
 
-  if ((!userName && !email) || !password?.trim()) {
-    throw new ApiError(400, "Username or email and password are required");
+  if (!email || !password?.trim()) {
+    throw new ApiError(400, "Email and password are required");
   }
 
-  const user = await User.findOne(
-    email
-      ? { email: email.toLowerCase() }
-      : { userName: userName.toLowerCase() }
-    email ? { email: email.toLowerCase() } : { userName: userName.toLowerCase() }
-  );
+  const user = await User.findOne({ email: email.toLowerCase() });
 
   if (!user) {
     throw new ApiError(404, "User not found");
