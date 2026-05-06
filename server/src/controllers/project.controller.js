@@ -19,21 +19,6 @@ const parseStringArray = (value) => {
       .map((item) => item.trim())
       .filter(Boolean);
   }
-
-  return [];
-};
-
-const validateOptionalUrl = (value, fieldName) => {
-  if (!value) {
-    return "";
-  }
-
-  try {
-    const url = new URL(value);
-    return url.toString();
-  } catch {
-    throw new ApiError(400, `${fieldName} must be a valid URL`);
-  }
 };
 
 const buildProjectPayload = (project, extra = {}) => ({
@@ -51,6 +36,22 @@ const buildProjectPayload = (project, extra = {}) => ({
   ...extra,
 });
 
+const uploadProjectImages = async (files = []) => {
+  const uploadedImages = await Promise.all(
+    files.map(async (file) => {
+      const upload = await uploadOnCloudinary(file.path);
+
+      if (!upload?.secure_url) {
+        throw new ApiError(500, `Image upload failed for ${file.originalname}`);
+      }
+
+      return upload.secure_url;
+    })
+  );
+
+  return uploadedImages.filter(Boolean);
+};
+
 const createProject = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
 
@@ -64,6 +65,7 @@ const createProject = asyncHandler(async (req, res) => {
     techStack: parseStringArray(req.body.techStack),
     githubLink: validateOptionalUrl(req.body.githubLink?.trim(), "githubLink"),
     liveLink: validateOptionalUrl(req.body.liveLink?.trim(), "liveLink"),
+    images: imageUrls,
     images: parseStringArray(req.body.images),
     userId: req.user._id,
   });
@@ -110,6 +112,20 @@ const getAllProjects = asyncHandler(async (req, res) => {
       .populate("userId", "userName fullName avatar")
       .lean(),
     Project.countDocuments(match),
+  ]);
+
+  const projectIds = projects.map((project) => project._id);
+  const [likes, comments] = await Promise.all([
+    Like.aggregate([
+      { $match: { project: { $in: projectIds } } },
+      { $group: { _id: "$project", count: { $sum: 1 } } },
+    ]),
+    Comment.aggregate([
+      { $match: { project: { $in: projectIds } } },
+      { $group: { _id: "$project", count: { $sum: 1 } } },
+    ]),
+  ]);
+
   ]);
 
   const projectIds = projects.map((project) => project._id);
@@ -180,6 +196,7 @@ const getProjectById = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(
       200,
+      buildProjectPayload(project, { likeCount, commentCount }),
       buildProjectPayload(project, {
         likeCount,
         commentCount,
@@ -205,6 +222,11 @@ const updateProject = asyncHandler(async (req, res) => {
     throw new ApiError(403, "You are not allowed to update this project");
   }
 
+  if (req.body.title?.trim()) {
+    project.title = req.body.title.trim();
+  }
+  if (req.body.description?.trim()) {
+    project.description = req.body.description.trim();
   const updates = {
     title: req.body.title?.trim(),
     description: req.body.description?.trim(),
@@ -235,6 +257,22 @@ const updateProject = asyncHandler(async (req, res) => {
   }
   if (req.body.images !== undefined) {
     project.images = parseStringArray(req.body.images);
+  }
+  if (req.files?.length) {
+    const uploadedImages = await uploadProjectImages(req.files);
+    project.images = [...project.images, ...uploadedImages];
+  }
+  if (req.body.githubLink !== undefined) {
+    project.githubLink = validateOptionalUrl(
+      req.body.githubLink?.trim(),
+      "githubLink"
+    );
+  }
+  if (req.body.liveLink !== undefined) {
+    project.liveLink = validateOptionalUrl(
+      req.body.liveLink?.trim(),
+      "liveLink"
+    );
   }
 
   await project.save();
@@ -284,6 +322,10 @@ const deleteProject = asyncHandler(async (req, res) => {
 
 export {
   createProject,
+  updateProject,
+  deleteProject,
+  getProjectById,
+  getAllProjects,
   getAllProjects,
   getProjectById,
   updateProject,

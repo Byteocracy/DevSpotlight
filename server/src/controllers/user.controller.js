@@ -6,12 +6,43 @@ import { ApiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
 import { Project } from "../models/project.model.js";
 import { Contribution } from "../models/contribution.model.js";
+import uploadOnCloudinary from "../utils/cloudinary.js";
 
 const updateProfile = asyncHandler(async (req, res) => {
   const { userName, bio, email, fullName } = req.body;
+  const updates = {};
 
-  if (!fullName || !email || !bio) {
-    throw new ApiError(400, "Full name, email, and bio are required");
+  if (typeof userName === "string" && userName.trim()) {
+    updates.userName = userName.trim().toLowerCase();
+  }
+  if (typeof fullName === "string" && fullName.trim()) {
+    updates.fullName = fullName.trim();
+  }
+  if (typeof email === "string" && email.trim()) {
+    updates.email = email.trim().toLowerCase();
+  }
+  if (typeof bio === "string") {
+    updates.bio = bio.trim();
+  }
+
+  if (Object.keys(updates).length === 0 && !req.files?.avatar?.[0] && !req.files?.coverImage?.[0]) {
+    throw new ApiError(400, "At least one profile field or image is required");
+  }
+
+  const duplicateChecks = [
+    ...(updates.userName ? [{ userName: updates.userName }] : []),
+    ...(updates.email ? [{ email: updates.email }] : []),
+  ];
+
+  const duplicateUser = duplicateChecks.length
+    ? await User.findOne({
+        _id: { $ne: req.user._id },
+        $or: duplicateChecks,
+      })
+    : null;
+
+  if (duplicateUser) {
+    throw new ApiError(400, "Username or email is already in use");
   }
 
   let avatarUrl = undefined;
@@ -20,29 +51,32 @@ const updateProfile = asyncHandler(async (req, res) => {
   const avatarFile = req.files?.avatar?.[0];
   if (avatarFile) {
     const avatarUpload = await uploadOnCloudinary(avatarFile.path);
-    avatarUrl = avatarUpload?.url;
+    if (!avatarUpload?.secure_url) {
+      throw new ApiError(500, "Avatar upload failed");
+    }
+    avatarUrl = avatarUpload.secure_url;
   }
 
   const coverImageFile = req.files?.coverImage?.[0];
   if (coverImageFile) {
-    const coverImageUpload = await uploadOnCloudinara2qy(coverImageFile.path);
-    coverImageUrl = coverImageUpload?.url;
+    const coverImageUpload = await uploadOnCloudinary(coverImageFile.path);
+    if (!coverImageUpload?.secure_url) {
+      throw new ApiError(500, "Cover image upload failed");
+    }
+    coverImageUrl = coverImageUpload.secure_url;
   }
 
   const updatedUser = await User.findByIdAndUpdate(
     req.user?._id,
     {
       $set: {
-        userName,
-        fullName,
-        email,
-        bio,
+        ...updates,
         ...(avatarUrl && { avatar: avatarUrl }),
         ...(coverImageUrl && { coverImage: coverImageUrl }),
       },
     },
-    { new: true }
-  ).select("-password");
+    { new: true, runValidators: true }
+  ).select("-password -refreshToken");
 
   return res
     .status(200)
@@ -145,11 +179,11 @@ const removeUserCoverImage = asyncHandler(async (req, res) => {
     req.user._id,
     {
       $set: {
-        coverImage: null,
+        coverImage: "",
       },
     },
     { new: true }
-  ).select("-password");
+  ).select("-password -refreshToken");
 
   return res
     .status(200)
@@ -161,11 +195,12 @@ const removeUserAvatar = asyncHandler(async (req, res) => {
     req.user._id,
     {
       $set: {
-        avatar: null,
+        avatar:
+          "https://ui-avatars.com/api/?name=Dev+Spotlight&background=111827&color=f8fafc",
       },
     },
     { new: true }
-  ).select("-password");
+  ).select("-password -refreshToken");
 
   return res
     .status(200)

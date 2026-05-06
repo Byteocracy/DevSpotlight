@@ -61,6 +61,55 @@ function App() {
     return selectedProject.userId._id === user._id;
   }, [selectedProject, user]);
 
+  const handleError = (error, fallbackMessage) => {
+    setStatusMessage(error?.response?.data?.message || fallbackMessage);
+  };
+
+  const loadProjects = useCallback(async (page, searchQuery) => {
+    try {
+      const response = await getProjects({ page, limit: 6, query: searchQuery });
+      setProjects(response.projects);
+      setPagination((current) => ({ ...current, ...response.pagination, page }));
+    } catch (error) {
+      handleError(error, "Unable to load projects");
+    }
+  }, []);
+
+  const loadRequestsIfOwner = useCallback(
+    async (project) => {
+      if (!project?.userId || !user || project.userId._id !== user._id) {
+        setRequests([]);
+        return;
+      }
+
+      try {
+        const response = await getContributionRequests(project._id);
+        setRequests(response);
+      } catch (error) {
+        handleError(error, "Unable to load contribution requests");
+      }
+    },
+    [user]
+  );
+
+  const handleSelectProject = useCallback(
+    async (projectId) => {
+      try {
+        const [project, projectComments] = await Promise.all([
+          getProjectById(projectId),
+          getProjectComments(projectId),
+        ]);
+
+        setSelectedProject(project);
+        setComments(projectComments);
+        await loadRequestsIfOwner(project);
+      } catch (error) {
+        handleError(error, "Unable to load project details");
+      }
+    },
+    [loadRequestsIfOwner]
+  );
+
   useEffect(() => {
     void (async () => {
       try {
@@ -329,6 +378,16 @@ function App() {
               <div className="section-head">
                 <h3>{authMode === "login" ? "Sign in" : "Create account"}</h3>
                 <div className="segmented">
+                  <button className={authMode === "login" ? "active" : ""} type="button" onClick={() => setAuthMode("login")}>Login</button>
+                  <button className={authMode === "register" ? "active" : ""} type="button" onClick={() => setAuthMode("register")}>Register</button>
+                </div>
+              </div>
+              <div className="form-grid">
+                <input placeholder="Username" value={authForm.userName} onChange={(event) => setAuthForm((current) => ({ ...current, userName: event.target.value }))} />
+                {authMode === "register" && <input placeholder="Full name" value={authForm.fullName} onChange={(event) => setAuthForm((current) => ({ ...current, fullName: event.target.value }))} />}
+                {authMode === "register" && <input placeholder="Email" value={authForm.email} onChange={(event) => setAuthForm((current) => ({ ...current, email: event.target.value }))} />}
+                <input placeholder="Password" type="password" value={authForm.password} onChange={(event) => setAuthForm((current) => ({ ...current, password: event.target.value }))} />
+                {authMode === "register" && <textarea placeholder="Short bio" rows="3" value={authForm.bio} onChange={(event) => setAuthForm((current) => ({ ...current, bio: event.target.value }))} />}
                   <button
                     className={authMode === "login" ? "active" : ""}
                     type="button"
@@ -401,6 +460,14 @@ function App() {
                 <p>Use comma-separated values for tech stack and image URLs.</p>
               </div>
               <div className="form-grid form-grid-wide">
+                <input placeholder="Project title" value={projectForm.title} onChange={(event) => setProjectForm((current) => ({ ...current, title: event.target.value }))} />
+                <input placeholder="Tech stack" value={projectForm.techStack} onChange={(event) => setProjectForm((current) => ({ ...current, techStack: event.target.value }))} />
+                <textarea placeholder="Project description" rows="4" value={projectForm.description} onChange={(event) => setProjectForm((current) => ({ ...current, description: event.target.value }))} />
+                <input placeholder="GitHub link" value={projectForm.githubLink} onChange={(event) => setProjectForm((current) => ({ ...current, githubLink: event.target.value }))} />
+                <input placeholder="Live link" value={projectForm.liveLink} onChange={(event) => setProjectForm((current) => ({ ...current, liveLink: event.target.value }))} />
+                <input placeholder="Image URLs" value={projectForm.images} onChange={(event) => setProjectForm((current) => ({ ...current, images: event.target.value }))} />
+              </div>
+              <button className="primary-button" type="submit" disabled={isBusy}>Publish project</button>
                 <input
                   placeholder="Project title"
                   value={projectForm.title}
@@ -458,6 +525,7 @@ function App() {
               <h3>Project feed</h3>
               <p>Newest first, paginated, searchable.</p>
             </div>
+            <input className="search-input" placeholder="Search title, description, or stack" value={query} onChange={(event) => { setQuery(event.target.value); setPagination((current) => ({ ...current, page: 1 })); }} />
             <input
               className="search-input"
               placeholder="Search title, description, or stack"
@@ -472,6 +540,7 @@ function App() {
           <div className="feed-grid">
             <div className="project-list">
               {projects.map((project) => (
+                <button key={project._id} type="button" className={`project-card ${selectedProject?._id === project._id ? "selected" : ""}`} onClick={() => void handleSelectProject(project._id)}>
                 <button
                   key={project._id}
                   type="button"
@@ -498,6 +567,12 @@ function App() {
                 <>
                   <div className="detail-header">
                     <div>
+                      <span className="tag">{selectedProject.techStack?.join(" · ") || "Student project"}</span>
+                      <h3>{selectedProject.title}</h3>
+                    </div>
+                    <div className="detail-actions">
+                      <button className="ghost-button" type="button" onClick={() => void handleLike()}>Like {selectedProject.likeCount}</button>
+                      {!isOwner && <button className="primary-button" type="button" onClick={() => void handleContributionRequest()}>Request contribution</button>}
                       <span className="tag">
                         {selectedProject.techStack?.join(" · ") || "Student project"}
                       </span>
@@ -522,6 +597,12 @@ function App() {
                   <p className="detail-description">{selectedProject.description}</p>
 
                   <div className="link-row">
+                    {selectedProject.githubLink && <a href={selectedProject.githubLink} target="_blank" rel="noreferrer">GitHub</a>}
+                    {selectedProject.liveLink && <a href={selectedProject.liveLink} target="_blank" rel="noreferrer">Live demo</a>}
+                  </div>
+
+                  <div className="image-strip">
+                    {selectedProject.images?.length ? selectedProject.images.map((image) => <a key={image} href={image} target="_blank" rel="noreferrer">{image}</a>) : <span>No images added yet.</span>}
                     {selectedProject.githubLink && (
                       <a href={selectedProject.githubLink} target="_blank" rel="noreferrer">
                         GitHub
@@ -592,6 +673,8 @@ function App() {
                             <p>@{request.userId?.userName}</p>
                             {request.status === "pending" && (
                               <div className="request-actions">
+                                <button className="primary-button" type="button" onClick={() => void handleContributionAction(request._id, "approve")}>Approve</button>
+                                <button className="ghost-button" type="button" onClick={() => void handleContributionAction(request._id, "reject")}>Reject</button>
                                 <button
                                   className="primary-button"
                                   type="button"
@@ -625,6 +708,9 @@ function App() {
           </div>
 
           <div className="pagination-row">
+            <button className="ghost-button" type="button" disabled={!pagination.hasPreviousPage} onClick={() => setPagination((current) => ({ ...current, page: current.page - 1 }))}>Previous</button>
+            <span>Page {pagination.page} of {pagination.totalPages}</span>
+            <button className="ghost-button" type="button" disabled={!pagination.hasNextPage} onClick={() => setPagination((current) => ({ ...current, page: current.page + 1 }))}>Next</button>
             <button
               className="ghost-button"
               type="button"

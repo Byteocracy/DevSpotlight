@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { asyncHandler } from "../utils/asyncHandlers.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { ApiError } from "../utils/apiError.js";
@@ -73,7 +74,11 @@ const deleteComment = asyncHandler(async (req, res) => {
 
   const comment = await Comment.findById(commentId);
   if (!comment) {
-    throw new ApiError(404, "Comment not found!");
+    throw new ApiError(404, "Comment not found");
+  }
+
+  if (String(comment.owner) !== String(req.user._id)) {
+    throw new ApiError(403, "You are not allowed to delete this comment");
   }
 
   if (String(comment.owner) !== String(req.user._id)) {
@@ -96,7 +101,7 @@ const getAllComments = asyncHandler(async (req, res) => {
 
   const project = await Project.findById(projectId);
   if (!project) {
-    throw new ApiError(404, "Project not found!");
+    throw new ApiError(404, "Project not found");
   }
 
   const comments = await Comment.find({ project: projectId })
@@ -104,6 +109,7 @@ const getAllComments = asyncHandler(async (req, res) => {
     .populate("owner", "userName fullName avatar")
     .lean();
 
+  return res
   res
     .status(200)
     .json(new ApiResponse(200, comments, "Comments fetched successfully"));

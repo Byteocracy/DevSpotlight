@@ -42,6 +42,11 @@ export function AuthProvider({ children }) {
     setUser(nextUser);
   };
 
+  const updateUser = (nextUser) => {
+    persistSession({ token, user: nextUser });
+    setUser(nextUser);
+  };
+
   const login = async (payload) => {
     const response = await loginRequest(payload);
     handleAuthSuccess(response);
@@ -77,6 +82,7 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        updateUser,
       }}
     >
       {children}
