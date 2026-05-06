@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { asyncHandler } from "../utils/asyncHandlers.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { ApiError } from "../utils/apiError.js";
+import mongoose from "mongoose";
 import { Project } from "../models/project.model.js";
 import { Comment } from "../models/comment.model.js";
 
@@ -80,6 +81,10 @@ const deleteComment = asyncHandler(async (req, res) => {
     throw new ApiError(403, "You are not allowed to delete this comment");
   }
 
+  if (String(comment.owner) !== String(req.user._id)) {
+    throw new ApiError(403, "You are not allowed to delete this comment");
+  }
+
   await comment.deleteOne();
 
   return res
@@ -105,6 +110,7 @@ const getAllComments = asyncHandler(async (req, res) => {
     .lean();
 
   return res
+  res
     .status(200)
     .json(new ApiResponse(200, comments, "Comments fetched successfully"));
 });

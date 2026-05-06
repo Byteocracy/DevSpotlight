@@ -31,6 +31,18 @@ const generateAccessAndRefreshToken = async (userId) => {
   return { accessToken, refreshToken };
 };
 
+const sanitizeUser = (user) => ({
+  _id: user._id,
+  userName: user.userName,
+  fullName: user.fullName,
+  email: user.email,
+  bio: user.bio,
+  avatar: user.avatar,
+  coverImage: user.coverImage,
+  role: user.role,
+});
+
+//register
 const registerUser = asyncHandler(async (req, res) => {
   const { userName, fullName, email, password, bio, avatar, coverImage } =
     req.body;
@@ -55,6 +67,15 @@ const registerUser = asyncHandler(async (req, res) => {
     userName: userName.toLowerCase(),
     fullName: fullName.trim(),
     email: email.toLowerCase(),
+  if (user) {
+    throw new ApiError(400, "User already registered!");
+  }
+
+  //create user
+  const registeredUser = await User.create({
+    userName,
+    fullName,
+    email,
     password,
     bio: bio?.trim() || undefined,
     avatar: avatar?.trim() || undefined,
@@ -64,6 +85,10 @@ const registerUser = asyncHandler(async (req, res) => {
   const createdUser = await User.findById(registeredUser._id).select(
     "-password -refreshToken"
   );
+
+  if (!createdUser) {
+    throw new ApiError(400, "User registration failed!");
+  }
 
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
     createdUser._id
@@ -80,6 +105,15 @@ const registerUser = asyncHandler(async (req, res) => {
       "User registered successfully"
     )
   );
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { user: sanitizeUser(createdUser), accessToken, refreshToken },
+        "User registered successfully"
+      )
+    );
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -93,6 +127,7 @@ const loginUser = asyncHandler(async (req, res) => {
     email
       ? { email: email.toLowerCase() }
       : { userName: userName.toLowerCase() }
+    email ? { email: email.toLowerCase() } : { userName: userName.toLowerCase() }
   );
 
   if (!user) {

@@ -5,11 +5,12 @@ import { ApiError } from "../utils/apiError.js";
 import { Project } from "../models/project.model.js";
 import { Like } from "../models/like.model.js";
 import { Comment } from "../models/comment.model.js";
-import uploadOnCloudinary from "../utils/cloudinary.js";
 
 const parseStringArray = (value) => {
   if (Array.isArray(value)) {
-    return value.map((item) => `${item}`.trim()).filter(Boolean);
+    return value
+      .map((item) => `${item}`.trim())
+      .filter(Boolean);
   }
 
   if (typeof value === "string") {
@@ -17,20 +18,6 @@ const parseStringArray = (value) => {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
-  }
-
-  return [];
-};
-
-const validateOptionalUrl = (value, fieldName) => {
-  if (!value) {
-    return "";
-  }
-
-  try {
-    return new URL(value).toString();
-  } catch {
-    throw new ApiError(400, `${fieldName} must be a valid URL`);
   }
 };
 
@@ -72,9 +59,6 @@ const createProject = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Title and description are required");
   }
 
-  const uploadedImages = await uploadProjectImages(req.files || []);
-  const imageUrls = [...parseStringArray(req.body.images), ...uploadedImages];
-
   const project = await Project.create({
     title: title.trim(),
     description: description.trim(),
@@ -82,6 +66,7 @@ const createProject = asyncHandler(async (req, res) => {
     githubLink: validateOptionalUrl(req.body.githubLink?.trim(), "githubLink"),
     liveLink: validateOptionalUrl(req.body.liveLink?.trim(), "liveLink"),
     images: imageUrls,
+    images: parseStringArray(req.body.images),
     userId: req.user._id,
   });
 
@@ -127,6 +112,20 @@ const getAllProjects = asyncHandler(async (req, res) => {
       .populate("userId", "userName fullName avatar")
       .lean(),
     Project.countDocuments(match),
+  ]);
+
+  const projectIds = projects.map((project) => project._id);
+  const [likes, comments] = await Promise.all([
+    Like.aggregate([
+      { $match: { project: { $in: projectIds } } },
+      { $group: { _id: "$project", count: { $sum: 1 } } },
+    ]),
+    Comment.aggregate([
+      { $match: { project: { $in: projectIds } } },
+      { $group: { _id: "$project", count: { $sum: 1 } } },
+    ]),
+  ]);
+
   ]);
 
   const projectIds = projects.map((project) => project._id);
@@ -198,6 +197,10 @@ const getProjectById = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       buildProjectPayload(project, { likeCount, commentCount }),
+      buildProjectPayload(project, {
+        likeCount,
+        commentCount,
+      }),
       "Project fetched successfully"
     )
   );
@@ -224,6 +227,30 @@ const updateProject = asyncHandler(async (req, res) => {
   }
   if (req.body.description?.trim()) {
     project.description = req.body.description.trim();
+  const updates = {
+    title: req.body.title?.trim(),
+    description: req.body.description?.trim(),
+    githubLink:
+      req.body.githubLink !== undefined
+        ? validateOptionalUrl(req.body.githubLink?.trim(), "githubLink")
+        : undefined,
+    liveLink:
+      req.body.liveLink !== undefined
+        ? validateOptionalUrl(req.body.liveLink?.trim(), "liveLink")
+        : undefined,
+  };
+
+  if (updates.title) {
+    project.title = updates.title;
+  }
+  if (updates.description) {
+    project.description = updates.description;
+  }
+  if (updates.githubLink !== undefined) {
+    project.githubLink = updates.githubLink;
+  }
+  if (updates.liveLink !== undefined) {
+    project.liveLink = updates.liveLink;
   }
   if (req.body.techStack !== undefined) {
     project.techStack = parseStringArray(req.body.techStack);
@@ -299,4 +326,8 @@ export {
   deleteProject,
   getProjectById,
   getAllProjects,
+  getAllProjects,
+  getProjectById,
+  updateProject,
+  deleteProject,
 };
