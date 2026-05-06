@@ -1,16 +1,20 @@
 import mongoose from "mongoose";
 import { DB_NAME } from "../constants.js";
-console.log(DB_NAME);
-const connectDB = async () => {
-  try {
-    const connectionInstance = await mongoose.connect(
-      `${process.env.MONGODB_URI}/${DB_NAME}`
-    );
 
-    console.log("DB connected sussesfully");
+const connectDB = async () => {
+  const mongoUri = process.env.MONGODB_URI?.trim();
+
+  if (!mongoUri) {
+    throw new Error("MONGODB_URI is missing in server/.env");
+  }
+
+  try {
+    const normalizedUri = mongoUri.endsWith("/") ? mongoUri.slice(0, -1) : mongoUri;
+    const connectionInstance = await mongoose.connect(`${normalizedUri}/${DB_NAME}`);
+
+    console.log(`DB connected successfully: ${connectionInstance.connection.host}`);
   } catch (error) {
-    console.log("DB connection failed");
-    process.exit(1);
+    throw new Error(`DB connection failed: ${error.message}`);
   }
 };
 

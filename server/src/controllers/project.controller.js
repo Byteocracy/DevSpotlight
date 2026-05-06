@@ -5,6 +5,7 @@ import { ApiError } from "../utils/apiError.js";
 import { Project } from "../models/project.model.js";
 import { Like } from "../models/like.model.js";
 import { Comment } from "../models/comment.model.js";
+import uploadOnCloudinary from "../utils/cloudinary.js";
 
 const parseStringArray = (value) => {
   if (Array.isArray(value)) {
@@ -48,6 +49,22 @@ const buildProjectPayload = (project, extra = {}) => ({
   ...extra,
 });
 
+const uploadProjectImages = async (files = []) => {
+  const uploadedImages = await Promise.all(
+    files.map(async (file) => {
+      const upload = await uploadOnCloudinary(file.path);
+
+      if (!upload?.secure_url) {
+        throw new ApiError(500, `Image upload failed for ${file.originalname}`);
+      }
+
+      return upload.secure_url;
+    })
+  );
+
+  return uploadedImages.filter(Boolean);
+};
+
 const createProject = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
 
@@ -55,13 +72,16 @@ const createProject = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Title and description are required");
   }
 
+  const uploadedImages = await uploadProjectImages(req.files || []);
+  const imageUrls = [...parseStringArray(req.body.images), ...uploadedImages];
+
   const project = await Project.create({
     title: title.trim(),
     description: description.trim(),
     techStack: parseStringArray(req.body.techStack),
     githubLink: validateOptionalUrl(req.body.githubLink?.trim(), "githubLink"),
     liveLink: validateOptionalUrl(req.body.liveLink?.trim(), "liveLink"),
-    images: parseStringArray(req.body.images),
+    images: imageUrls,
     userId: req.user._id,
   });
 
@@ -210,6 +230,10 @@ const updateProject = asyncHandler(async (req, res) => {
   }
   if (req.body.images !== undefined) {
     project.images = parseStringArray(req.body.images);
+  }
+  if (req.files?.length) {
+    const uploadedImages = await uploadProjectImages(req.files);
+    project.images = [...project.images, ...uploadedImages];
   }
   if (req.body.githubLink !== undefined) {
     project.githubLink = validateOptionalUrl(
